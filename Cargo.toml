@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "gtk-list-provider",
+    "applist",
+    "dirlist",
+    "projlist",
+]

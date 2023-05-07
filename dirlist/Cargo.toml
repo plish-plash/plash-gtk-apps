@@ -1,0 +1,11 @@
+[package]
+name = "dirlist"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gtk = { version = "0.6.6", package = "gtk4", features = ["v4_10"] }
+gtk-list-provider = { path = "../gtk-list-provider" }
+expanduser = "1.2.2"
+bytesize = "1.2.0"
+timeago = { version = "0.4.1", default-features = false }
