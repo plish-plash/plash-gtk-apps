@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Applist
+Comment=System application launcher
+Exec=applist
+Icon=start-here-archlinux
+Terminal=false
+NoDisplay=true

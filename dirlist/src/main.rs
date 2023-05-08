@@ -121,6 +121,7 @@ fn open_window(app: &gtk::Application, path: &Path) {
 
     let app_window = gtk::ApplicationWindow::builder()
         .application(app)
+        .icon_name("system-file-manager")
         .default_width(640)
         .default_height(480)
         .child(&root)

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Projlist
+Comment=User project manager
+Exec=projlist
+Icon=applications-development
+Terminal=false

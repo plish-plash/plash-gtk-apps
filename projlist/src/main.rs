@@ -198,6 +198,7 @@ fn build_window(app: &gtk::Application) {
     let app_window = gtk::ApplicationWindow::builder()
         .application(app)
         .title("Projects")
+        .icon_name("applications-development")
         .default_width(640)
         .default_height(480)
         .child(&pane)
