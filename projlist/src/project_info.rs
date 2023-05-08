@@ -1,5 +1,5 @@
 use glib::Object;
-use gtk::{glib::{self, DateTime}, subclass::prelude::ObjectSubclassIsExt};
+use gtk::{glib, subclass::prelude::ObjectSubclassIsExt};
 
 use crate::config;
 
@@ -8,19 +8,19 @@ mod imp {
 
     use gtk::glib;
     use gtk::subclass::prelude::*;
-    
+
     #[derive(Default)]
     pub struct ProjectInfo {
         pub inner: OnceCell<super::ProjectInfoInner>,
     }
-    
+
     #[glib::object_subclass]
     impl ObjectSubclass for ProjectInfo {
         const NAME: &'static str = "ProjlistProjectInfo";
         type Type = super::ProjectInfo;
         type ParentType = glib::Object;
     }
-    
+
     impl ObjectImpl for ProjectInfo {}
 }
 
@@ -37,13 +37,15 @@ pub struct ProjectInfoInner {
 
 impl ProjectInfoInner {
     pub fn from_config(info: config::ProjectInfo) -> Self {
-        let last_opened = if info.last_opened == 0 { None } else { Some(DateTime::from_unix_utc(info.last_opened).unwrap()) };
+        let last_opened = if info.last_opened == 0 {
+            None
+        } else {
+            Some(glib::DateTime::from_unix_utc(info.last_opened).unwrap())
+        };
         let mut short_path = info.path.clone();
-        if let Ok(home_dir) = expanduser::expanduser("~") {
-            let home_dir = home_dir.to_string_lossy();
-            if let Some(s) = short_path.strip_prefix(&*home_dir) {
-                short_path = format!("~{}", s);
-            }
+        let home_dir = gtk::glib::home_dir();
+        if let Some(s) = short_path.strip_prefix(&*home_dir.to_string_lossy()) {
+            short_path = format!("~{}", s);
         }
         ProjectInfoInner {
             name: info.name,
@@ -88,4 +90,6 @@ impl ProjectInfo {
     pub fn notes(&self) -> &str {
         &self.imp().inner.get().unwrap().notes
     }
+
+    pub fn open_command() {}
 }

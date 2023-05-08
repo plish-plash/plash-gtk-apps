@@ -1,19 +1,16 @@
-mod project_info;
 mod config;
+mod project_info;
 
 use std::{fmt, time::Duration};
 
-use gtk::{
-    gio::ListStore,
-    glib::{ExitCode, DateTime},
-    prelude::*,
-};
+use gtk::{gio::ListStore, glib, prelude::*};
 use gtk_list_provider::*;
 
 use project_info::{ProjectInfo, ProjectInfoInner};
 
-const APP_ID: &str = "org.github.elliotsegal.ProjList";
-const APP_CONFIG_DIR: &str = "projects";
+const APP_ID: &str = "com.github.plish-plash.plash-gtk-apps.Projlist";
+const APP_CONFIG_DIR: &str = "projlist";
+const APP_PROJECTS_FILE: &str = "Projects.toml";
 
 struct NameColumn;
 
@@ -60,7 +57,7 @@ impl LastOpenedColumn {
         let text = item
             .last_opened()
             .map(|dt| {
-                let now = DateTime::now(&dt.timezone()).unwrap();
+                let now = glib::DateTime::now(&dt.timezone()).unwrap();
                 formatter.convert(Duration::from_micros(
                     now.difference(&dt).as_microseconds() as u64
                 ))
@@ -69,9 +66,7 @@ impl LastOpenedColumn {
         widget.set_text(&text);
     }
     fn sort(a: &ProjectInfo, b: &ProjectInfo) -> gtk::Ordering {
-        a.last_opened()
-            .cmp(&b.last_opened())
-            .into()
+        a.last_opened().cmp(&b.last_opened()).into()
     }
 }
 
@@ -165,43 +160,75 @@ impl ListProvider for ProjectProvider {
         self.model.clone()
     }
     fn columns(&self) -> &[Self::Column] {
-        &[ProjectColumn::Name, ProjectColumn::Type, ProjectColumn::Status, ProjectColumn::LastOpened, ProjectColumn::Path]
+        &[
+            ProjectColumn::Name,
+            ProjectColumn::Type,
+            ProjectColumn::Status,
+            ProjectColumn::LastOpened,
+            ProjectColumn::Path,
+        ]
     }
 }
 
 fn build_window(app: &gtk::Application) {
     let mut config_dir = gtk::glib::user_config_dir();
     config_dir.push(APP_CONFIG_DIR);
-    let projects = match config::load_config_and_projects(&config_dir) {
+    let mut projects_file = gtk::glib::home_dir();
+    projects_file.push(APP_PROJECTS_FILE);
+    let projects = match config::load_config(&config_dir)
+        .and_then(|_| config::load_projects(&projects_file))
+    {
         Ok(projects) => projects,
         Err(error) => {
             eprintln!("{}", error);
             return;
         }
     };
-    let projects: Vec<_> = projects.into_iter().map(ProjectInfoInner::from_config).map(ProjectInfo::new).collect();
+    let projects: Vec<_> = projects
+        .into_iter()
+        .map(ProjectInfoInner::from_config)
+        .map(ProjectInfo::new)
+        .collect();
 
     let model = ListStore::new(ProjectInfo::static_type());
     model.extend_from_slice(&projects);
     let provider = ProjectProvider { model };
-    let (pane, _view) = build_column_view(&provider, 240);
+    let (pane, view) = build_column_view(&provider, 240);
 
     let app_window = gtk::ApplicationWindow::builder()
         .application(app)
-        .title("Applications")
+        .title("Projects")
         .default_width(640)
         .default_height(480)
         .child(&pane)
         .build();
     app_window.present();
 
-    // view.connect_activate(move |view, position| {
-    //     todo!();
-    // });
+    view.connect_activate(move |view, position| {
+        let item = view
+            .model()
+            .unwrap()
+            .item(position)
+            .and_downcast::<ProjectInfo>();
+        if let Some(item) = item {
+            if let Some(application) = config::project_type_application(item.project_type()) {
+                let file = gtk::gio::File::for_path(item.path());
+                if let Err(error) = application.launch(&[file], gtk::gio::AppLaunchContext::NONE) {
+                    eprintln!("{}", error);
+                }
+            } else {
+                eprintln!(
+                    "Could not find application to open {} project.",
+                    item.project_type()
+                );
+            }
+        }
+    });
 }
 
-fn main() -> ExitCode {
+fn main() -> glib::ExitCode {
     let app = gtk::Application::builder().application_id(APP_ID).build();
+    // app.connect_startup(|_| load_css());
     app.connect_activate(build_window);
     app.run()
 }

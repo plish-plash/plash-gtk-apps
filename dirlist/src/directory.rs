@@ -1,13 +1,13 @@
 use std::fmt;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use bytesize::ByteSize;
-use gtk::gio::{FileInfo, FileType, File};
-use gtk::glib::DateTime;
+use gtk::gio::{File, FileInfo, FileType};
+use gtk::glib;
 use gtk::prelude::*;
 
-use gtk_list_provider::{ListProvider, ListColumn, ListDetail};
+use gtk_list_provider::{ListColumn, ListDetail, ListProvider};
 
 struct NameColumn;
 
@@ -70,7 +70,7 @@ impl ModifiedColumn {
         let text = item
             .modification_date_time()
             .map(|dt| {
-                let now = DateTime::now(&dt.timezone()).unwrap();
+                let now = glib::DateTime::now(&dt.timezone()).unwrap();
                 formatter.convert(Duration::from_micros(
                     now.difference(&dt).as_microseconds() as u64
                 ))
@@ -173,10 +173,12 @@ pub struct DirectoryProvider {
 
 impl DirectoryProvider {
     pub fn new(path: &Path) -> Self {
-        DirectoryProvider { directory: gtk::DirectoryList::new(
-            Some("standard::name,standard::icon,standard::size,time::modified"),
-            Some(&File::for_path(path)),
-        ) }
+        DirectoryProvider {
+            directory: gtk::DirectoryList::new(
+                Some("standard::name,standard::icon,standard::size,time::modified"),
+                Some(&File::for_path(path)),
+            ),
+        }
     }
     pub fn path(&self) -> PathBuf {
         self.directory.file().unwrap().path().unwrap()

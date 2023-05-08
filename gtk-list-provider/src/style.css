@@ -1,0 +1,5 @@
+.content-pane {
+    border-top-style: solid;
+    border-top-width: 1px;
+    border-top-color: @borders;
+}

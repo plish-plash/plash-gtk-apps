@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use gtk::glib::clone;
+use gtk::glib;
 use gtk::prelude::*;
 
 pub trait ListColumn: Copy + Display + 'static {
@@ -40,20 +40,23 @@ fn list_item_factory_for_column<C: ListColumn>(column: C) -> gtk::SignalListItem
     list_item_factory
 }
 
-fn build_detail_pane<P: ListProvider, V: IsA<gtk::Widget>>(model: gtk::SingleSelection, view: &V, detail_width: i32) -> gtk::Paned {
+fn build_detail_pane<P: ListProvider, V: IsA<gtk::Widget>>(
+    model: gtk::SingleSelection,
+    view: &V,
+    detail_width: i32,
+) -> gtk::Paned {
     let detail = P::Detail::setup_content();
     detail.set_margin_start(6);
     detail.set_margin_end(6);
     let detail_scroll = gtk::ScrolledWindow::builder()
         .width_request(detail_width)
         .child(&detail)
+        .visible(false)
         .build();
-    let detail_frame = gtk::Frame::builder().child(&detail_scroll).build();
-    detail_frame.set_visible(false);
 
-    model.connect_selection_changed(clone!(@strong detail_frame => move |model, _, _| {
+    model.connect_selection_changed(glib::clone!(@strong detail_scroll => move |model, _, _| {
         let item = model.selected_item().and_downcast::<P::ModelItem>();
-        detail_frame.set_visible(item.is_some());
+        detail_scroll.set_visible(item.is_some());
         if let Some(item) = item {
             P::Detail::bind_content(detail.clone(), item);
         }
@@ -73,12 +76,13 @@ fn build_detail_pane<P: ListProvider, V: IsA<gtk::Widget>>(model: gtk::SingleSel
         .orientation(gtk::Orientation::Horizontal)
         .hexpand(true)
         .vexpand(true)
+        .css_classes(["content-pane"])
         .resize_start_child(true)
         .shrink_start_child(false)
         .start_child(&view_scroll)
         .resize_end_child(false)
         .shrink_end_child(false)
-        .end_child(&detail_frame)
+        .end_child(&detail_scroll)
         .build()
 }
 
@@ -98,7 +102,10 @@ pub fn build_list_view<P: ListProvider>(
     (pane, view)
 }
 
-pub fn build_column_view<P: ListProvider>(provider: &P, detail_width: i32) -> (gtk::Paned, gtk::ColumnView) {
+pub fn build_column_view<P: ListProvider>(
+    provider: &P,
+    detail_width: i32,
+) -> (gtk::Paned, gtk::ColumnView) {
     let view = gtk::ColumnView::new(gtk::SelectionModel::NONE.cloned());
     let model = gtk::SingleSelection::builder()
         .autoselect(false)
@@ -130,4 +137,14 @@ pub fn build_column_view<P: ListProvider>(provider: &P, detail_width: i32) -> (g
 
     let pane = build_detail_pane::<P, _>(model, &view, detail_width);
     (pane, view)
+}
+
+pub fn load_css() {
+    let provider = gtk::CssProvider::new();
+    provider.load_from_data(include_str!("style.css"));
+    gtk::style_context_add_provider_for_display(
+        &gtk::gdk::Display::default().expect("could not connect to a display"),
+        &provider,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
 }

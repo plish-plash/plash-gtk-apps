@@ -8,7 +8,6 @@ once_cell = "1.17"
 gtk = { version = "0.6.6", package = "gtk4", features = ["v4_10"] }
 gtk-list-provider = { path = "../gtk-list-provider" }
 timeago = { version = "0.4.1", default-features = false }
-expanduser = "1.2.2"
 
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.7.3"

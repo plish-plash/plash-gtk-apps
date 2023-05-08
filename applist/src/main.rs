@@ -4,12 +4,12 @@ use std::fmt;
 
 use gtk::{
     gio::{AppInfo, ListStore},
-    glib::ExitCode,
+    glib,
     prelude::*,
 };
 use gtk_list_provider::*;
 
-const APP_ID: &str = "org.github.elliotsegal.AppList";
+const APP_ID: &str = "com.github.plish-plash.plash-gtk-apps.Applist";
 
 #[derive(Clone, Copy)]
 struct AppListColumn;
@@ -171,8 +171,9 @@ fn build_window(app: &gtk::Application) {
     });
 }
 
-fn main() -> ExitCode {
+fn main() -> glib::ExitCode {
     let app = gtk::Application::builder().application_id(APP_ID).build();
+    app.connect_startup(|_| load_css());
     app.connect_activate(build_window);
     app.run()
 }

@@ -1,14 +1,30 @@
 mod directory;
 
-use std::{path::{Path, PathBuf}, cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
-use expanduser::expanduser;
-use gtk::{glib::{clone, ExitCode}, prelude::*, gio::{FileInfo, FileType, AppInfo, AppLaunchContext}};
-use gtk_list_provider::build_column_view;
+use gtk::{
+    gio::{AppInfo, AppLaunchContext, FileInfo, FileType},
+    glib,
+    prelude::*,
+};
 
 use directory::DirectoryProvider;
 
-const APP_ID: &str = "org.github.elliotsegal.DirList";
+const APP_ID: &str = "com.github.plish-plash.plash-gtk-apps.Dirlist";
+
+pub fn expand_user_path(path: &Path) -> PathBuf {
+    if let Ok(path) = path.strip_prefix("~") {
+        let mut home = glib::home_dir();
+        home.push(path);
+        home
+    } else {
+        path.to_owned()
+    }
+}
 
 struct DirectoryWindow {
     app_window: gtk::ApplicationWindow,
@@ -31,7 +47,13 @@ impl DirectoryWindow {
             let model = self.view.model().and_downcast::<gtk::SingleSelection>();
             if let Some(model) = model {
                 for position in 0..model.n_items() {
-                    if model.item(position).and_downcast::<FileInfo>().unwrap().name() == selection {
+                    if model
+                        .item(position)
+                        .and_downcast::<FileInfo>()
+                        .unwrap()
+                        .name()
+                        == selection
+                    {
                         model.set_selected(position);
                         return;
                     }
@@ -40,7 +62,7 @@ impl DirectoryWindow {
         }
     }
     fn set_path(&self, path: &Path) {
-        let mut path = if let Ok(path) = expanduser(path.to_string_lossy()).and_then(|path| path.canonicalize()) {
+        let mut path = if let Ok(path) = expand_user_path(path).canonicalize() {
             path
         } else {
             let alert = gtk::AlertDialog::builder()
@@ -54,13 +76,18 @@ impl DirectoryWindow {
         if !path.is_dir() {
             let file_name = if let Some(file_name) = path.file_name() {
                 Path::new(file_name).to_owned()
-            } else { return; };
+            } else {
+                return;
+            };
             path.pop();
             self.queued_selection.replace(Some(file_name));
         }
 
         self.deselect();
-        let title = path.file_name().unwrap_or(path.as_os_str()).to_string_lossy();
+        let title = path
+            .file_name()
+            .unwrap_or(path.as_os_str())
+            .to_string_lossy();
         self.app_window.set_title(Some(&title));
         self.entry.set_text(&path.to_string_lossy());
         self.navigate_up.set_sensitive(path.parent().is_some());
@@ -89,7 +116,7 @@ fn open_window(app: &gtk::Application, path: &Path) {
     root.append(&entry_row);
 
     let provider = DirectoryProvider::new(path);
-    let (pane, view) = build_column_view(&provider, 240);
+    let (pane, view) = gtk_list_provider::build_column_view(&provider, 240);
     root.append(&pane);
 
     let app_window = gtk::ApplicationWindow::builder()
@@ -110,17 +137,21 @@ fn open_window(app: &gtk::Application, path: &Path) {
     window.set_path(path);
     window.app_window.present();
 
-    window.entry.connect_activate(clone!(@strong window => move |_| {
-        let entry_text = window.entry.text();
-        window.set_path(Path::new(&entry_text));
-    }));
-    window.navigate_up.connect_clicked(clone!(@strong window => move |_| {
-        let mut path = window.provider.path();
-        if path.pop() {
-            window.set_path(&path);
-        }
-    }));
-    window.view.connect_activate(clone!(@strong window => move |view, position| {
+    window
+        .entry
+        .connect_activate(glib::clone!(@strong window => move |_| {
+            let entry_text = window.entry.text();
+            window.set_path(Path::new(&entry_text));
+        }));
+    window
+        .navigate_up
+        .connect_clicked(glib::clone!(@strong window => move |_| {
+            let mut path = window.provider.path();
+            if path.pop() {
+                window.set_path(&path);
+            }
+        }));
+    window.view.connect_activate(glib::clone!(@strong window => move |view, position| {
         let item = view
             .model()
             .unwrap()
@@ -139,18 +170,21 @@ fn open_window(app: &gtk::Application, path: &Path) {
             }
         }
     }));
-    window.provider.directory.connect_loading_notify(clone!(@strong window => move |directory| {
-        if !directory.is_loading() {
-            window.dequeue_selection();
-        }
-    }));
+    window.provider.directory.connect_loading_notify(
+        glib::clone!(@strong window => move |directory| {
+            if !directory.is_loading() {
+                window.dequeue_selection();
+            }
+        }),
+    );
 }
 
-fn main() -> ExitCode {
+fn main() -> glib::ExitCode {
     let app = gtk::Application::builder()
         .application_id(APP_ID)
         .flags(gtk::gio::ApplicationFlags::HANDLES_OPEN)
         .build();
+    app.connect_startup(|_| gtk_list_provider::load_css());
     app.connect_activate(|app| {
         let path = std::env::current_dir().expect("couldn't get current directory");
         open_window(app, &path);
