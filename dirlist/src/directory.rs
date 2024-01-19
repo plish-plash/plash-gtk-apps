@@ -7,7 +7,7 @@ use gtk::gio::{File, FileInfo, FileType};
 use gtk::glib;
 use gtk::prelude::*;
 
-use gtk_list_provider::{ListColumn, ListDetail, ListProvider};
+use gtk_list_provider::{ListColumn, ListContent, ListProvider};
 
 struct NameColumn;
 
@@ -102,7 +102,7 @@ impl fmt::Display for DirectoryColumn {
     }
 }
 
-impl ListColumn for DirectoryColumn {
+impl ListContent for DirectoryColumn {
     type ModelItem = FileInfo;
     fn setup_content(&self) -> gtk::Widget {
         match self {
@@ -118,6 +118,9 @@ impl ListColumn for DirectoryColumn {
             DirectoryColumn::Modified => ModifiedColumn::bind_content(widget, item),
         }
     }
+}
+
+impl ListColumn for DirectoryColumn {
     fn sort(&self, a: &Self::ModelItem, b: &Self::ModelItem) -> gtk::Ordering {
         match self {
             DirectoryColumn::Name => NameColumn::sort(a, b),
@@ -129,9 +132,9 @@ impl ListColumn for DirectoryColumn {
 
 pub struct FileDetail;
 
-impl ListDetail for FileDetail {
+impl ListContent for FileDetail {
     type ModelItem = FileInfo;
-    fn setup_content() -> gtk::Widget {
+    fn setup_content(&self) -> gtk::Widget {
         let outer = gtk::Box::new(gtk::Orientation::Vertical, 6);
         let top = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
@@ -147,7 +150,7 @@ impl ListDetail for FileDetail {
         outer.append(&content);
         outer.upcast()
     }
-    fn bind_content(widget: gtk::Widget, item: Self::ModelItem) {
+    fn bind_content(&self, widget: gtk::Widget, item: Self::ModelItem) {
         let outer: gtk::Box = widget.downcast().unwrap();
         let top = outer.first_child().unwrap();
         let image: gtk::Image = top.first_child().unwrap().downcast().unwrap();
@@ -196,11 +199,14 @@ impl ListProvider for DirectoryProvider {
     fn model(&self) -> Self::Model {
         self.directory.clone()
     }
-    fn columns(&self) -> &[Self::Column] {
-        &[
+    fn columns(&self) -> Vec<Self::Column> {
+        vec![
             DirectoryColumn::Name,
             DirectoryColumn::Size,
             DirectoryColumn::Modified,
         ]
+    }
+    fn detail(&self) -> Self::Detail {
+        FileDetail
     }
 }

@@ -3,35 +3,33 @@ use std::fmt::Display;
 use gtk::glib;
 use gtk::prelude::*;
 
-pub trait ListColumn: Copy + Display + 'static {
+pub trait ListContent: 'static {
     type ModelItem: IsA<gtk::glib::Object>;
     fn setup_content(&self) -> gtk::Widget;
     fn bind_content(&self, widget: gtk::Widget, item: Self::ModelItem);
-    fn sort(&self, a: &Self::ModelItem, b: &Self::ModelItem) -> gtk::Ordering;
 }
 
-pub trait ListDetail {
-    type ModelItem: IsA<gtk::glib::Object>;
-    fn setup_content() -> gtk::Widget;
-    fn bind_content(widget: gtk::Widget, item: Self::ModelItem);
+pub trait ListColumn: ListContent + Clone + Display {
+    fn sort(&self, a: &Self::ModelItem, b: &Self::ModelItem) -> gtk::Ordering;
 }
 
 pub trait ListProvider {
     type Model: IsA<gtk::gio::ListModel>;
     type ModelItem: IsA<gtk::glib::Object>;
     type Column: ListColumn<ModelItem = Self::ModelItem>;
-    type Detail: ListDetail<ModelItem = Self::ModelItem>;
+    type Detail: ListContent<ModelItem = Self::ModelItem>;
     fn model(&self) -> Self::Model;
-    fn columns(&self) -> &[Self::Column];
+    fn columns(&self) -> Vec<Self::Column>;
+    fn detail(&self) -> Self::Detail;
 }
 
 fn list_item_factory_for_column<C: ListColumn>(column: C) -> gtk::SignalListItemFactory {
     let list_item_factory = gtk::SignalListItemFactory::new();
-    list_item_factory.connect_setup(move |_factory, object| {
+    list_item_factory.connect_setup(glib::clone!(@strong column => move |_factory, object| {
         let list_item: &gtk::ListItem = object.downcast_ref().unwrap();
         let child = column.setup_content();
         list_item.set_child(Some(&child));
-    });
+    }));
     list_item_factory.connect_bind(move |_factory, object| {
         let list_item: &gtk::ListItem = object.downcast_ref().unwrap();
         let item = list_item.item().and_downcast::<C::ModelItem>().unwrap();
@@ -41,16 +39,21 @@ fn list_item_factory_for_column<C: ListColumn>(column: C) -> gtk::SignalListItem
 }
 
 fn build_detail_pane<P: ListProvider, V: IsA<gtk::Widget>>(
+    provider: &P,
     model: gtk::SingleSelection,
     view: &V,
     detail_width: i32,
 ) -> gtk::Paned {
-    let detail = P::Detail::setup_content();
-    detail.set_margin_start(6);
-    detail.set_margin_end(6);
+    let detail = provider.detail();
+    let detail_widget = detail.setup_content();
+    detail_widget.set_margin_top(6);
+    detail_widget.set_margin_bottom(6);
+    detail_widget.set_margin_start(6);
+    detail_widget.set_margin_end(6);
     let detail_scroll = gtk::ScrolledWindow::builder()
         .width_request(detail_width)
-        .child(&detail)
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .child(&detail_widget)
         .visible(false)
         .build();
 
@@ -58,7 +61,7 @@ fn build_detail_pane<P: ListProvider, V: IsA<gtk::Widget>>(
         let item = model.selected_item().and_downcast::<P::ModelItem>();
         detail_scroll.set_visible(item.is_some());
         if let Some(item) = item {
-            P::Detail::bind_content(detail.clone(), item);
+            detail.bind_content(detail_widget.clone(), item);
         }
     }));
 
@@ -95,10 +98,10 @@ pub fn build_list_view<P: ListProvider>(
         .can_unselect(true)
         .model(&provider.model())
         .build();
-    let column = provider.columns()[0];
+    let column = provider.columns().into_iter().next().unwrap();
     let list_item_factory = list_item_factory_for_column(column);
     let view = gtk::ListView::new(Some(model.clone()), Some(list_item_factory));
-    let pane = build_detail_pane::<P, _>(model, &view, detail_width);
+    let pane = build_detail_pane(provider, model, &view, detail_width);
     (pane, view)
 }
 
@@ -118,8 +121,8 @@ pub fn build_column_view<P: ListProvider>(
     view.set_model(Some(&model));
 
     let mut first_column = None;
-    for &column in provider.columns() {
-        let list_item_factory = list_item_factory_for_column(column);
+    for column in provider.columns() {
+        let list_item_factory = list_item_factory_for_column(column.clone());
         let view_column =
             gtk::ColumnViewColumn::new(Some(&column.to_string()), Some(list_item_factory));
         view_column.set_sorter(Some(&gtk::CustomSorter::new(move |a, b| {
@@ -135,7 +138,7 @@ pub fn build_column_view<P: ListProvider>(
     }
     view.sort_by_column(first_column.as_ref(), gtk::SortType::Ascending);
 
-    let pane = build_detail_pane::<P, _>(model, &view, detail_width);
+    let pane = build_detail_pane(provider, model, &view, detail_width);
     (pane, view)
 }
 

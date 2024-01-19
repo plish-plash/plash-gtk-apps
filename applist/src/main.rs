@@ -20,7 +20,7 @@ impl fmt::Display for AppListColumn {
     }
 }
 
-impl ListColumn for AppListColumn {
+impl ListContent for AppListColumn {
     type ModelItem = AppInfo;
     fn setup_content(&self) -> gtk::Widget {
         let outer = gtk::Box::new(gtk::Orientation::Horizontal, 6);
@@ -55,6 +55,9 @@ impl ListColumn for AppListColumn {
         ));
         description.set_text(&item.description().unwrap_or_default());
     }
+}
+
+impl ListColumn for AppListColumn {
     fn sort(&self, a: &Self::ModelItem, b: &Self::ModelItem) -> gtk::Ordering {
         a.display_name().cmp(&b.display_name()).into()
     }
@@ -62,9 +65,9 @@ impl ListColumn for AppListColumn {
 
 struct AppListDetail;
 
-impl ListDetail for AppListDetail {
+impl ListContent for AppListDetail {
     type ModelItem = AppInfo;
-    fn setup_content() -> gtk::Widget {
+    fn setup_content(&self) -> gtk::Widget {
         let outer = gtk::Box::new(gtk::Orientation::Vertical, 6);
         let top = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
@@ -78,7 +81,7 @@ impl ListDetail for AppListDetail {
         outer.append(&top);
         outer.upcast()
     }
-    fn bind_content(widget: gtk::Widget, item: Self::ModelItem) {
+    fn bind_content(&self, widget: gtk::Widget, item: Self::ModelItem) {
         let outer: gtk::Box = widget.downcast().unwrap();
         let top = outer.first_child().unwrap();
         let image: gtk::Image = top.first_child().unwrap().downcast().unwrap();
@@ -128,8 +131,11 @@ impl ListProvider for AppListProvider {
     fn model(&self) -> Self::Model {
         self.model.clone()
     }
-    fn columns(&self) -> &[Self::Column] {
-        &[AppListColumn]
+    fn columns(&self) -> Vec<Self::Column> {
+        vec![AppListColumn]
+    }
+    fn detail(&self) -> Self::Detail {
+        AppListDetail
     }
 }
 
